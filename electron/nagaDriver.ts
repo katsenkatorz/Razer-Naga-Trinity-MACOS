@@ -373,13 +373,16 @@ const writeSideButtonBinding = async (
   })
 }
 
-// Synapse-Pattern: erst Slot 2 (pending), dann Slot 1 (commit/active). Beide identisch beschreiben.
+// Synapse-Pattern aus dem Wireshark-Capture: JEDES Binding wird als Paar geschrieben,
+// erst Slot 2 (pending), dann sofort Slot 1 (commit) für dieselbe Taste. Vorher lief die
+// Schleife pro Slot über alle Tasten (12x Slot 2, dann 12x Slot 1) - dabei committet die FW
+// jede Taste gegen den zuletzt gesehenen Pending-Wert, die Belegungen landen verschoben.
 const applySideBindings = async (device: Device, hidCodes: readonly number[]) => {
-  for (const slot of [0x02, 0x01]) {
-    for (let i = 0; i < Math.min(12, hidCodes.length); i++) {
-      await writeSideButtonBinding(device, slot, i + 1, hidCodes[i])
-      await wait(20)
-    }
+  for (let i = 0; i < Math.min(12, hidCodes.length); i++) {
+    await writeSideButtonBinding(device, 0x02, i + 1, hidCodes[i])
+    await wait(20)
+    await writeSideButtonBinding(device, 0x01, i + 1, hidCodes[i])
+    await wait(20)
   }
 }
 
@@ -410,11 +413,15 @@ const writeWheelTiltBinding = async (
   })
 }
 
+// Gleiches Paar-Muster wie applySideBindings: Slot 2 + Slot 1 pro Quelle, nicht pro Slot.
 const applyWheelTiltDefaults = async (device: Device) => {
-  for (const slot of [0x02, 0x01]) {
-    await writeWheelTiltBinding(device, slot, 0x34, 0x04)
+  for (const [source, action] of [
+    [0x34, 0x04],
+    [0x35, 0x05],
+  ] as const) {
+    await writeWheelTiltBinding(device, 0x02, source, action)
     await wait(20)
-    await writeWheelTiltBinding(device, slot, 0x35, 0x05)
+    await writeWheelTiltBinding(device, 0x01, source, action)
     await wait(20)
   }
 }

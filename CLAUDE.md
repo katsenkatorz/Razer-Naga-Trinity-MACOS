@@ -110,7 +110,24 @@ Razer report:
   byte[89] = 0x00
 ```
 
-**Crucial Synapse pattern**: each binding is written **TWICE — first to slot 2, then to slot 1**. Writing only to slot 1 returns `status=OK` but is silently dropped — the FW only commits when both writes happen in that order. Implemented in `nagaDriver.ts` `applySideBindings`.
+**Crucial Synapse pattern**: each binding is written **TWICE: first to slot 2, then to slot 1**. Writing only to slot 1 returns `status=OK` but is silently dropped, the FW only commits when both writes happen in that order. Implemented in `nagaDriver.ts` `applySideBindings`.
+
+**The pairing is per button, not per slot.** This is not a style detail, it decides where the
+keycodes land. The loop must be:
+
+```
+for each button i:  write(slot 2, i, code_i)  then  write(slot 1, i, code_i)
+```
+
+NOT `for slot in [2,1]: for each button i: write(slot, i, code_i)`. With the batched form the
+FW commits every button against the last pending value it saw, and the whole keymap comes out
+shifted. Observed on hardware 2026-08-09: with the batched loop, button 1 configured as F1
+typed `6` and button 11 behaved like F3. After switching to the pairwise loop, a probe writing
+`a`..`l` to buttons 1..12 read back exactly `abcdefghijkl`. Same pattern applies to
+`applyWheelTiltDefaults`.
+
+That probe also confirms the source-ID table is right: source `0x40 + (n - 1)` is physical
+side button `n`, in the plate's printed numbering.
 
 Other source IDs observed in capture (not implemented):
 - 0x34, 0x35 — scroll wheel tilt/wheel; use action type 01/01 (system action, not keystroke)
