@@ -80,11 +80,19 @@ export interface ButtonBinding {
 export interface NagaProfile {
   id: string
   name: string
+  /** Which of the three interchangeable side plates is physically fitted. */
   sidePlate: SidePlate
   rgb: RgbSettings
   dpi: DpiSettings
   pollingRate: PollingRate
+  /** Base buttons + the side buttons of the *active* plate. This is what the UI edits. */
   buttons: ButtonBinding[]
+  /**
+   * Side-button bindings kept per plate, so swapping plates restores the previous
+   * configuration instead of resetting it. The active plate's entry is a mirror of the
+   * `side-*` items in `buttons`.
+   */
+  sidePlateBindings: Record<SidePlate, ButtonBinding[]>
   macros: Macro[]
   createdAt: number
   updatedAt: number

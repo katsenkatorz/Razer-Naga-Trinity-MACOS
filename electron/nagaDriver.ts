@@ -1,4 +1,6 @@
 import { findByIds, type Device } from 'usb'
+import { SIDE_PLATE_BUTTON_COUNT } from './buttonLayout'
+import { HID_NONE, resolveHidCode } from './hidKeys'
 import type {
   ApplyResult,
   DeviceInfo,
@@ -417,17 +419,67 @@ const applyWheelTiltDefaults = async (device: Device) => {
   }
 }
 
-const buildSideBindings = (profile: NagaProfile): number[] => {
+// Actions the FW can't express through a keystroke binding (cls 0x02 / action type 02 02).
+// Razer has dedicated action types for these but they aren't decoded yet, so we fall back
+// to the factory key and tell the user instead of silently doing nothing.
+const UNSUPPORTED_SIDE_ACTIONS = new Set([
+  'dpi-up',
+  'dpi-down',
+  'dpi-cycle',
+  'profile-cycle',
+  'mouse-button',
+])
+
+interface SideBindingPlan {
+  /** One HID Usage ID per physically present side button. */
+  codes: number[]
+  /** Human-readable list of buttons whose configuration could not be written. */
+  unmapped: string[]
+}
+
+export const buildSideBindings = (profile: NagaProfile): SideBindingPlan => {
+  const count = SIDE_PLATE_BUTTON_COUNT[profile.sidePlate] ?? 12
   const codes: number[] = []
-  for (let i = 0; i < 12; i++) {
+  const unmapped: string[] = []
+
+  for (let i = 0; i < count; i++) {
     const binding = profile.buttons.find((b) => b.id === `side-${i + 1}`)
-    if (binding?.action === 'macro' && binding.macroId) {
-      codes.push(SIDE_BUTTON_MACRO_HID[i])
-    } else {
-      codes.push(RAZER_DEFAULT_SIDE_HID[i])
+    const label = binding?.label ?? `Side ${i + 1}`
+
+    if (binding?.action === 'macro') {
+      if (binding.macroId) {
+        codes.push(SIDE_BUTTON_MACRO_HID[i])
+      } else {
+        unmapped.push(`${label} (no macro selected)`)
+        codes.push(RAZER_DEFAULT_SIDE_HID[i])
+      }
+      continue
     }
+
+    if (binding?.action === 'disabled') {
+      codes.push(HID_NONE)
+      continue
+    }
+
+    if (binding?.action === 'key') {
+      const hid = resolveHidCode(binding.value)
+      if (hid !== undefined) {
+        codes.push(hid)
+      } else {
+        unmapped.push(`${label} (“${binding.value}”)`)
+        codes.push(RAZER_DEFAULT_SIDE_HID[i])
+      }
+      continue
+    }
+
+    if (binding && UNSUPPORTED_SIDE_ACTIONS.has(binding.action)) {
+      unmapped.push(`${label} (${binding.action})`)
+    }
+
+    codes.push(RAZER_DEFAULT_SIDE_HID[i])
   }
-  return codes
+
+  return { codes, unmapped }
 }
 
 export const listNagaDevices = (): DeviceInfo => {
@@ -456,18 +508,30 @@ export const applyHardwareProfile = async (
     await applyRgb(device, profile.rgb)
     await setDpiStages(device, profile.dpi)
     await setPollingRate(device, profile.pollingRate)
-    const sideCodes = buildSideBindings(profile)
-    await applySideBindings(device, sideCodes)
+    const { codes, unmapped } = buildSideBindings(profile)
+    await applySideBindings(device, codes)
     await applyWheelTiltDefaults(device)
     const macroCount = profile.buttons.filter(
       (b) => b.id.startsWith('side-') && b.action === 'macro' && b.macroId,
     ).length
+
+    const base = 'RGB, DPI, Polling-Rate und Button-Bindings auf Maus geschrieben.'
+    if (unmapped.length > 0) {
+      return {
+        ok: true,
+        message: `${base} ${unmapped.length} Side-Button(s) konnten nicht geschrieben werden: ${unmapped.join(', ')}.`,
+        key: 'driverNotices.applyCompleteWithUnmapped',
+        params: { count: unmapped.length, unmapped: unmapped.join(', ') },
+        stage: 'complete',
+      }
+    }
+
     return {
       ok: true,
       message:
         macroCount > 0
-          ? `RGB, DPI, Polling-Rate und Button-Bindings auf Maus geschrieben. ${macroCount} Side-Buttons auf F13–F24 für Makros gemappt.`
-          : 'RGB, DPI, Polling-Rate und Button-Bindings auf Maus geschrieben.',
+          ? `${base} ${macroCount} Side-Buttons auf F13-F24 für Makros gemappt.`
+          : base,
       key: macroCount > 0 ? 'driverNotices.applyCompleteWithMacros' : 'driverNotices.applyComplete',
       params: { macroCount },
       stage: 'complete',

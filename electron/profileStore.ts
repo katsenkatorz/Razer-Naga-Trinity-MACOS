@@ -2,6 +2,16 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { app } from 'electron'
 import { join } from 'node:path'
+import {
+  buildBaseButtons,
+  buildButtonsForPlate,
+  buildSideButtons,
+  isBaseButton,
+  isSideButton,
+  normalizeSidePlateBindings,
+  type SidePlateBindings,
+} from './buttonLayout'
+import { resolveHidCode } from './hidKeys'
 import type {
   AppSettings,
   ButtonBinding,
@@ -11,7 +21,9 @@ import type {
   SidePlate,
 } from './types'
 
-const STORE_VERSION = 2
+const STORE_VERSION = 3
+
+export { buildButtonsForPlate }
 
 const defaultSettings = (): AppSettings => ({
   rgbOffOnLock: true,
@@ -21,44 +33,6 @@ const mergeSettings = (incoming: Partial<AppSettings> | undefined): AppSettings 
   ...defaultSettings(),
   ...(incoming ?? {}),
 })
-
-const SIDE_PLATE_LABELS: Record<SidePlate, string[]> = {
-  two: ['Side 1', 'Side 2'],
-  seven: ['Side 1', 'Side 2', 'Side 3', 'Side 4', 'Side 5', 'Side 6', 'Side 7'],
-  twelve: Array.from({ length: 12 }, (_, index) => `Numpad ${index + 1}`),
-}
-
-const BASE_BUTTONS: Array<{ label: string; action: ButtonBinding['action']; value: string }> = [
-  { label: 'Left Click', action: 'default', value: 'Mouse 1' },
-  { label: 'Right Click', action: 'default', value: 'Mouse 2' },
-  { label: 'Scroll Click', action: 'default', value: 'Mouse 3' },
-  { label: 'Scroll Up', action: 'default', value: 'Wheel ↑' },
-  { label: 'Scroll Down', action: 'default', value: 'Wheel ↓' },
-  { label: 'Wheel Tilt Left', action: 'default', value: 'Browser ←' },
-  { label: 'Wheel Tilt Right', action: 'default', value: 'Browser →' },
-  { label: 'DPI Up', action: 'dpi-up', value: 'DPI +' },
-  { label: 'DPI Down', action: 'dpi-down', value: 'DPI -' },
-]
-
-export const buildButtonsForPlate = (plate: SidePlate): ButtonBinding[] => {
-  const base = BASE_BUTTONS.map((entry, index) => ({
-    id: `base-${index + 1}`,
-    label: entry.label,
-    hardwareIndex: index + 1,
-    action: entry.action,
-    value: entry.value,
-  }))
-
-  const side = SIDE_PLATE_LABELS[plate].map((label, index) => ({
-    id: `side-${index + 1}`,
-    label,
-    hardwareIndex: 10 + index,
-    action: 'key' as const,
-    value: plate === 'twelve' ? `${index + 1}` : `F${index + 1}`,
-  }))
-
-  return [...base, ...side]
-}
 
 export const createDefaultMacro = (): Macro => ({
   id: randomUUID(),
@@ -98,29 +72,40 @@ const defaultDpi = (): NagaProfile['dpi'] => ({
   ],
 })
 
-// Migriert Button-Listen aus älteren Profil-Versionen (vor Wheel-Tilt) auf das aktuelle 9-Base-Layout, ohne Side-Buttons-Anpassungen zu verlieren.
-const migrateButtons = (
+// Migriert Base-Buttons aus älteren Profil-Versionen (vor Wheel-Tilt) auf das aktuelle 9-Base-Layout.
+const migrateBaseButtons = (buttons: ButtonBinding[] | undefined): ButtonBinding[] => {
+  const expected = buildBaseButtons()
+  if (!buttons) return expected
+
+  // Alt-Layout (vor Wheel-Tilt) hatte DPI Up/Down auf base-6/base-7 - komplett neu setzen.
+  if (buttons.find((b) => b.id === 'base-6')?.action === 'dpi-up') return expected
+
+  const byId = new Map(buttons.filter(isBaseButton).map((b) => [b.id, b]))
+  return expected.map((entry) => byId.get(entry.id) ?? entry)
+}
+
+// Store-Version 2 vergab als Side-Default `${index + 1}` bzw. `F${index + 1}`. Werte wie
+// "10", "11" oder "12" sind keine HID-Tastennamen und konnten nie geschrieben werden.
+// Nur solche unveränderten Defaults werden ersetzt - eigene Eingaben bleiben erhalten.
+const isLegacyAutoValue = (value: string, index: number) =>
+  value === `${index + 1}` && resolveHidCode(value) === undefined
+
+const migrateSideButtons = (
   buttons: ButtonBinding[] | undefined,
   plate: SidePlate,
 ): ButtonBinding[] => {
-  const expected = buildButtonsForPlate(plate)
+  const expected = buildSideButtons(plate)
   if (!buttons) return expected
 
-  // Alt-Layout (vor Wheel-Tilt) hatte DPI Up/Down auf base-6/base-7. Wenn das so ist, Base-Buttons komplett neu setzen und nur Side-Customizings übernehmen.
-  const legacyBase6 = buttons.find((b) => b.id === 'base-6')
-  const isLegacyLayout = legacyBase6?.action === 'dpi-up'
-
-  if (isLegacyLayout) {
-    const sideById = new Map(
-      buttons.filter((b) => b.id.startsWith('side-')).map((b) => [b.id, b]),
-    )
-    return expected.map((entry) =>
-      entry.id.startsWith('side-') ? sideById.get(entry.id) ?? entry : entry,
-    )
-  }
-
-  const byId = new Map(buttons.map((b) => [b.id, b]))
-  return expected.map((entry) => byId.get(entry.id) ?? entry)
+  const byId = new Map(buttons.filter(isSideButton).map((b) => [b.id, b]))
+  return expected.map((entry, index) => {
+    const stored = byId.get(entry.id)
+    if (!stored) return entry
+    if (stored.action === 'key' && isLegacyAutoValue(stored.value, index)) {
+      return { ...stored, value: entry.value }
+    }
+    return stored
+  })
 }
 
 export const createDefaultProfile = (
@@ -142,6 +127,16 @@ export const createDefaultProfile = (
         ? [{ id: randomUUID(), x: incomingDpi.x, y: incomingDpi.y }]
         : dpiBase.stages
 
+  const buttons = [
+    ...migrateBaseButtons(overrides.buttons),
+    ...migrateSideButtons(overrides.buttons, plate),
+  ]
+  const sidePlateBindings: SidePlateBindings = normalizeSidePlateBindings(
+    overrides.sidePlateBindings,
+    plate,
+    buttons,
+  )
+
   return {
     id: overrides.id ?? randomUUID(),
     name: overrides.name ?? 'Standardprofil',
@@ -156,7 +151,8 @@ export const createDefaultProfile = (
       stages: dpiStages,
     },
     pollingRate: overrides.pollingRate ?? 1000,
-    buttons: migrateButtons(overrides.buttons, plate),
+    buttons,
+    sidePlateBindings,
     macros: overrides.macros ?? [createDefaultMacro()],
     createdAt: overrides.createdAt ?? now,
     updatedAt: overrides.updatedAt ?? now,

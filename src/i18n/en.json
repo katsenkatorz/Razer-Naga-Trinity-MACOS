@@ -40,6 +40,7 @@
   "driverNotices": {
     "applyComplete": "RGB, DPI, polling rate and button bindings written to the mouse.",
     "applyCompleteWithMacros": "RGB, DPI, polling rate and button bindings written to the mouse. {{macroCount}} side buttons mapped to F13–F24 for macros.",
+    "applyCompleteWithUnmapped": "RGB, DPI and polling rate written. {{count}} side key(s) could not be sent to the mouse: {{unmapped}}.",
     "rgbOff": "RGB turned off.",
     "rgbUpdated": "RGB updated.",
     "usbError": "USB error: {{detail}}",
@@ -101,10 +102,7 @@
     "responseEyebrow": "Response time",
     "pollingTitle": "Polling rate",
     "pollingNote": "Higher polling rates increase precision and CPU load. 1000 Hz is recommended for gaming.",
-    "plateEyebrow": "Configuration",
-    "plateTitle": "Side plate",
-    "plateButtons": "side buttons",
-    "plateNote": "Keys and bindings adjust automatically when you swap the side plate."
+    "plateButtons": "side buttons"
   },
   "polling": {
     "lowSub": "Power-saving",
@@ -119,11 +117,23 @@
   "buttons": {
     "baseEyebrow": "Standard",
     "baseTitle": "Mouse buttons",
+    "baseNote": "Base buttons are informational: the Trinity firmware only accepts side-plate and wheel-tilt bindings.",
     "bindings": "bindings",
+    "plateEyebrow": "Hardware",
+    "plateTitle": "Which side plate is fitted?",
+    "plateFitted": "One at a time",
+    "plateNote": "The Naga Trinity ships with three magnetic side plates but only one can be attached. Pick the one you are using: each plate keeps its own bindings, so swapping back restores them.",
+    "diagramAria": "Side-plate button layout",
+    "diagramHint": "Click a button on the plate to jump to its binding.",
+    "slotEmpty": "empty",
+    "slotNoMacro": "no macro",
+    "unresolvedBadge": "{{count}} unknown key",
+    "unresolvedBadge_other": "{{count}} unknown keys",
+    "unknownKeyHint": "Unknown key name. It cannot be written to the mouse, so this button keeps its factory key. Single keys only, no combinations.",
     "sidePlateEyebrow": "Side plate ·",
     "sideTitle": "Side panel ({{count}} keys)",
     "macroPick": "— pick a macro —",
-    "keyPlaceholder": "e.g. F5, Shift+1, Ctrl+C",
+    "keyPlaceholder": "e.g. F5, A, Home, Numpad3",
     "labels": {
       "base-1": "Left click",
       "base-2": "Right click",

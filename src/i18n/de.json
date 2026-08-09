@@ -40,6 +40,7 @@
   "driverNotices": {
     "applyComplete": "RGB, DPI, Polling-Rate und Button-Bindings auf Maus geschrieben.",
     "applyCompleteWithMacros": "RGB, DPI, Polling-Rate und Button-Bindings auf Maus geschrieben. {{macroCount}} Side-Buttons auf F13–F24 für Makros gemappt.",
+    "applyCompleteWithUnmapped": "RGB, DPI und Polling-Rate geschrieben. {{count}} Seitentaste(n) konnten nicht an die Maus gesendet werden: {{unmapped}}.",
     "rgbOff": "RGB ausgeschaltet.",
     "rgbUpdated": "RGB aktualisiert.",
     "usbError": "USB-Fehler: {{detail}}",
@@ -101,10 +102,7 @@
     "responseEyebrow": "Reaktionszeit",
     "pollingTitle": "Polling Rate",
     "pollingNote": "Höhere Polling-Raten erhöhen die Präzision und CPU-Last. 1000 Hz wird für Gaming empfohlen.",
-    "plateEyebrow": "Konfiguration",
-    "plateTitle": "Seitenplatte",
-    "plateButtons": "Seitentasten",
-    "plateNote": "Tasten und Belegung werden automatisch angepasst, wenn du die Seitenplatte tauschst."
+    "plateButtons": "Seitentasten"
   },
   "polling": {
     "lowSub": "Stromsparend",
@@ -119,11 +117,23 @@
   "buttons": {
     "baseEyebrow": "Standard",
     "baseTitle": "Maustasten",
+    "baseNote": "Basistasten sind rein informativ: die Trinity-Firmware akzeptiert nur Belegungen für Seitenplatte und Rad-Tilt.",
     "bindings": "Belegungen",
+    "plateEyebrow": "Hardware",
+    "plateTitle": "Welche Seitenplatte ist montiert?",
+    "plateFitted": "Nur eine gleichzeitig",
+    "plateNote": "Die Naga Trinity hat drei magnetische Seitenplatten, aber nur eine kann montiert sein. Wähle die, die du benutzt: jede Platte behält ihre eigene Belegung, ein Wechsel zurück stellt sie wieder her.",
+    "diagramAria": "Tastenlayout der Seitenplatte",
+    "diagramHint": "Klicke eine Taste auf der Platte, um zu ihrer Belegung zu springen.",
+    "slotEmpty": "leer",
+    "slotNoMacro": "kein Makro",
+    "unresolvedBadge": "{{count}} unbekannte Taste",
+    "unresolvedBadge_other": "{{count}} unbekannte Tasten",
+    "unknownKeyHint": "Unbekannter Tastenname. Er kann nicht auf die Maus geschrieben werden, die Taste behält ihre Werksbelegung. Nur Einzeltasten, keine Kombinationen.",
     "sidePlateEyebrow": "Seitenplatte ·",
     "sideTitle": "Side Panel ({{count}} Tasten)",
     "macroPick": "— Makro wählen —",
-    "keyPlaceholder": "z.B. F5, Shift+1, Strg+C",
+    "keyPlaceholder": "z.B. F5, A, Home, Numpad3",
     "labels": {
       "base-1": "Linksklick",
       "base-2": "Rechtsklick",

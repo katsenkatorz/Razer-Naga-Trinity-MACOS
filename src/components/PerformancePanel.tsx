@@ -1,12 +1,7 @@
-import { Crosshair, Gauge, Layers, MinusCircle, PlusCircle } from 'lucide-react'
+import { Crosshair, Gauge, MinusCircle, PlusCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useActiveProfile, useNagaStore } from '../store/useNagaStore'
-import {
-  DPI_PRESETS,
-  POLLING_RATES,
-  SIDE_PLATE_BUTTONS,
-  SIDE_PLATE_IDS,
-} from '../lib/constants'
+import { DPI_PRESETS, POLLING_RATES } from '../lib/constants'
 import type { PollingRate } from '../../electron/types'
 
 const newId = () =>
@@ -18,8 +13,7 @@ export function PerformancePanel() {
   const { t } = useTranslation()
   const profile = useActiveProfile()
   const updateActive = useNagaStore((state) => state.updateActive)
-  const setSidePlate = useNagaStore((state) => state.setSidePlate)
-  const { dpi, pollingRate, sidePlate } = profile
+  const { dpi, pollingRate } = profile
 
   const activeStage = dpi.stages[dpi.activeStage - 1] ?? dpi.stages[0]
 
@@ -205,34 +199,6 @@ export function PerformancePanel() {
           ))}
         </div>
         <p className="muted small">{t('performance.pollingNote')}</p>
-      </div>
-
-      <div className="card plate-card">
-        <header className="card-head">
-          <div>
-            <p className="eyebrow">
-              <Layers size={12} /> {t('performance.plateEyebrow')}
-            </p>
-            <h3>{t('performance.plateTitle')}</h3>
-          </div>
-        </header>
-        <div className="plate-grid">
-          {SIDE_PLATE_IDS.map((plate) => (
-            <button
-              key={plate}
-              type="button"
-              className={`plate-tile ${sidePlate === plate ? 'active' : ''}`}
-              onClick={() => setSidePlate(plate)}
-            >
-              <strong>{t(`sidePlates.${plate}.label`)}</strong>
-              <span>{t(`sidePlates.${plate}.subtitle`)}</span>
-              <small>
-                {SIDE_PLATE_BUTTONS[plate]} {t('performance.plateButtons')}
-              </small>
-            </button>
-          ))}
-        </div>
-        <p className="muted small">{t('performance.plateNote')}</p>
       </div>
     </div>
   )

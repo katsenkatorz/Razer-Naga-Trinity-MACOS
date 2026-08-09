@@ -38,10 +38,13 @@ Spectrum/wave/reactive use the generic ext_matrix per-zone (`cls 0x0f cmd 0x02`)
 
 ## File map
 
-- `electron/nagaDriver.ts` — USB control-transfer driver. Exports `applyHardwareProfile`, `applyRgbOnly`, `setRgbOff`, `listNagaDevices`. All async.
-- `electron/main.ts` — IPC handlers + `powerMonitor` hooks (`lock-screen` / `unlock-screen` / `suspend` / `resume` → brightness 0 / re-apply active profile).
-- `electron/profileStore.ts` — JSON persistence at `app.getPath('userData')/profiles.json`. Has `migrateButtons` for old → new base-button layout migration (detects legacy `base-6` with `action=dpi-up`).
-- `src/store/useNagaStore.ts` — Zustand store + its own copy of `baseBindings` / `SIDE_PLATE_LABELS` (kept in sync with `profileStore.ts` manually — duplicated knowledge).
+- `electron/nagaDriver.ts` : USB control-transfer driver. Exports `applyHardwareProfile`, `applyRgbOnly`, `setRgbOff`, `listNagaDevices`, `buildSideBindings`.
+- `electron/hidKeys.ts` : HID Usage Table (keyboard page 0x07) + `resolveHidCode()`. **This is what makes user-typed key names reach the mouse.** Before it existed, every non-macro side button silently fell back to the Razer factory key.
+- `electron/buttonLayout.ts` : single source of truth for base buttons, side-plate labels/counts/defaults, and the per-plate binding map. Imported by both `profileStore.ts` (main) and `useNagaStore.ts` (renderer).
+- `electron/main.ts` : IPC handlers + `powerMonitor` hooks (`lock-screen` / `unlock-screen` / `suspend` / `resume` -> brightness 0 / re-apply active profile).
+- `electron/profileStore.ts` : JSON persistence at `app.getPath('userData')/profiles.json` (STORE_VERSION 3). `migrateBaseButtons` handles the pre-Wheel-Tilt layout (detects legacy `base-6` with `action=dpi-up`); `migrateSideButtons` rewrites the never-writable v2 defaults ("10"/"11"/"12") to the factory keys.
+- `src/components/SidePlateDiagram.tsx` : SVG of a side plate (2 stacked / 7 in a ring / 12 numpad grid), used both as the picker thumbnail and as the interactive full-size map.
+- `src/store/useNagaStore.ts` : Zustand store. Layout constants come from `electron/buttonLayout.ts`, no local copy.
 
 ## Base button layout (9 buttons, post Wheel-Tilt migration)
 
@@ -49,8 +52,28 @@ Spectrum/wave/reactive use the generic ext_matrix per-zone (`cls 0x0f cmd 0x02`)
 base-1 LMB, base-2 RMB, base-3 MMB, base-4 Scroll↑, base-5 Scroll↓,
 base-6 Wheel Tilt Left, base-7 Wheel Tilt Right,
 base-8 DPI+, base-9 DPI−
-side-1..side-12 Side panel buttons (twelve plate)
+side-1..side-N Side plate buttons (N = 2, 7 or 12)
 ```
+
+Base buttons are **not** written to the device: `applyHardwareProfile` only writes side-plate
+bindings and the fixed wheel-tilt defaults. The base rows in the UI are informational.
+
+## The three interchangeable side plates
+
+Only ONE plate is physically attached at a time (magnetic, 4x4 pin grid). Confirmed against
+the Razer Naga Trinity Master Guide (device layout items L / M / N):
+
+| Plate | Layout | Target |
+|---|---|---|
+| `two` | 2 large buttons stacked vertically | FPS |
+| `seven` | 7 buttons in a ring around a round thumb rest; numbered 3, 7, 6, 5, 4, 1, 2 clockwise from the top | MOBA |
+| `twelve` | numpad-style thumb grid, 3 columns x 4 rows, 1-12 left to right / top to bottom | MMO |
+
+The profile stores `sidePlate` (which one is fitted) plus `sidePlateBindings`, a full binding
+set **per plate**. `buttons` always holds base + the active plate's side buttons; the store's
+`withPlateSnapshot` mirrors it back into `sidePlateBindings` on every edit, so swapping plates
+restores the previous configuration instead of wiping it. Geometry lives in
+`src/components/SidePlateDiagram.tsx`.
 
 ## What works vs what doesn't
 
@@ -99,6 +122,21 @@ Other source IDs observed in capture (not implemented):
 - Button 11: HID 0x2d (`-`)
 - Button 12: HID 0x2e (`=`)
 
+**How `buildSideBindings` picks byte[14]** (nagaDriver.ts), per side button, for the
+`SIDE_PLATE_BUTTON_COUNT[plate]` buttons that physically exist:
+
+| Binding action | HID code written |
+|---|---|
+| `macro` with a macroId | F13+i (0x68..0x73), so globalShortcut can catch it |
+| `disabled` | 0x00 (no event) |
+| `key` with a resolvable name | `resolveHidCode(value)` from `hidKeys.ts` |
+| `key` with an unknown name | factory default + reported in `ApplyResult.unmapped` |
+| `default` | factory default for that slot |
+| `dpi-up` / `dpi-cycle` / `mouse-button` / ... | factory default + reported as unsupported |
+
+Only single keys work: the report has one keycode byte and the modifier byte is not decoded,
+so "Shift+1" or "Ctrl+C" cannot be written. The UI flags those inline.
+
 **Our app's macro-mode mapping**: When a side button has `action='macro'`, `applyHardwareProfile` writes that button to F13-F24 (HID 0x68-0x73) instead of its default. The macroEngine then registers `globalShortcut` for the corresponding F-key. This avoids globalShortcut hijacking common typing keys.
 
 | Side button | Macro-mode HID | globalShortcut |
@@ -115,7 +153,9 @@ Other source IDs observed in capture (not implemented):
 - ✅ **Bilingual UI (DE / EN)** done (2026-05-12 night) — `src/i18n/` with `i18next` + `react-i18next` + browser language detector. Auto-detects from `navigator.language`, manual switch in sidebar footer (`.lang-button` DE / EN), persisted in `localStorage` key `naga:lang`. Renderer also writes the choice back via `app:update-settings` → main process re-caches `cachedLang` and rebuilds the tray menu in place. Main has its own small `TRAY_STRINGS` table (DE/EN) since the tray is built before the renderer loads.
 - ✅ **RGB-off-on-lock toggle** done (2026-05-12 night) — new `AppSettings.rgbOffOnLock` (default `true`), stored in `profiles.json`. Tray menu checkbox "RGB beim Sperren ausschalten" / "Turn RGB off when screen locks". `powerMonitor` lock-screen/suspend handlers check the setting before calling `setRgbOff`; unlock/resume always restore. IPC `app:get-settings` / `app:update-settings`.
 - **Variante B** (native macOS CGEventTap with USB Vendor/Product filter via Swift addon) — only needed if user wants macros on side buttons currently bound to letters/symbols (their Btn1-5 = ' ` h i k). Architectural blueprint already in `## About OpenRazer as a reference source` above. Estimated ~3-4h.
-- The two `BASE_BUTTONS` / `SIDE_PLATE_LABELS` duplicates between `useNagaStore.ts` and `profileStore.ts` should be extracted to a shared module.
+- ✅ **Key bindings actually reach the mouse** done (2026-08-09) : `electron/hidKeys.ts` maps typed key names to HID Usage IDs. Previously `buildSideBindings` only special-cased macros and wrote the Razer factory key for everything else, so typing F1..F12 into the side buttons did nothing.
+- ✅ **Per-plate configuration** done (2026-08-09) : `sidePlateBindings` in the profile + a visual plate picker in the Keys panel (`SidePlateDiagram.tsx`). Switching plates no longer wipes bindings, and the driver only writes the buttons that physically exist.
+- ✅ **Shared button layout** done (2026-08-09) : `electron/buttonLayout.ts` replaced the `BASE_BUTTONS` / `SIDE_PLATE_LABELS` duplicates between `useNagaStore.ts` and `profileStore.ts`.
 - UI: surface which side buttons have active shortcuts vs. skipped (Engine returns `{ registered, skippedUnsafe, noKeymap }` from `registerProfileShortcuts`, but main.ts doesn't pass it to renderer yet).
 - UI: settings toggle for "open at login" (currently only in tray menu).
 

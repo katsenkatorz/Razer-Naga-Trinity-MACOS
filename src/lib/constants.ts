@@ -1,8 +1,4 @@
-import type {
-  PollingRate,
-  RgbEffect,
-  SidePlate,
-} from '../../electron/types'
+import type { PollingRate, RgbEffect } from '../../electron/types'
 
 export const RGB_EFFECT_IDS: readonly RgbEffect[] = [
   'static',
@@ -20,12 +16,7 @@ export const POLLING_RATES: Array<{ value: PollingRate; label: string; sublabelK
   { value: 1000, label: '1000 Hz', sublabelKey: 'polling.highSub' },
 ]
 
-export const SIDE_PLATE_IDS: readonly SidePlate[] = ['two', 'seven', 'twelve']
-export const SIDE_PLATE_BUTTONS: Record<SidePlate, number> = {
-  two: 2,
-  seven: 7,
-  twelve: 12,
-}
+// Side-plate ids and button counts live in electron/buttonLayout.ts - single source of truth.
 
 export const DPI_PRESETS = [400, 800, 1600, 1800, 3200, 6400, 12000, 16000]
 
