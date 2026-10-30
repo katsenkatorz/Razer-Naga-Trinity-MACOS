@@ -25,6 +25,15 @@ import type { AppSettings, NagaProfile, ProfileStore, RgbSettings } from './type
 
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL)
 
+const isWebUrl = (url: string) => {
+  try {
+    const { protocol } = new URL(url)
+    return protocol === 'https:' || protocol === 'http:'
+  } catch {
+    return false
+  }
+}
+
 const TRAY_ICON_DATA_URL =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAO0lEQVR4nGNgGOzgPxRTpJksQ9A1k2QILs1EGUJIM15DiNWM0xCKDaDYC8QaQhSgSDMuQ8gCFGmmDwAAhdVTrfcfBBYAAAAASUVORK5CYII='
 
@@ -85,12 +94,15 @@ const createWindow = async () => {
       preload: join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      // The preload only uses contextBridge + ipcRenderer, which work in a sandboxed renderer.
+      sandbox: true,
     },
   })
 
+  // Only hand web links to the system browser: file:, custom URL schemes and the like
+  // could launch local apps or handlers.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url)
+    if (isWebUrl(url)) void shell.openExternal(url)
     return { action: 'deny' }
   })
 
