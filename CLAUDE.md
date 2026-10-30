@@ -179,10 +179,9 @@ so "Shift+1" or "Ctrl+C" cannot be written. The UI flags those inline.
 ## Macro engine architecture (Variante A)
 
 `electron/macroEngine.ts`:
-- `readSideKeymap()` (from `nagaDriver.ts`) returns the 12 EEPROM HID codes for the side panel.
-- `HID_TO_ACCELERATOR` maps HID Usage IDs (0x3a-0x73 range) to Electron accelerator strings. Anything outside this map is treated as "unsafe" and skipped.
+- No keymap is read from the device: `SIDE_BUTTON_ACCELERATORS` is the fixed F13..F24 list that `buildSideBindings` writes for macro buttons. (Older notes mentioned a `readSideKeymap()`; it never existed in the code. To read the keymap, see "Reading the side-button keymap" below.)
 - `executeMacro(macro)` runs steps sequentially via `osascript`/`System Events`. Text steps become `keystroke "..."`, key steps fall back to a small key-code table (Enter/Tab/Esc/Arrows) or `keystroke` for printable values, delay steps `setTimeout`. Repeat mode `count` is honored; `while-held` and `toggle` are not (globalShortcut only fires press).
-- `registerProfileShortcuts(profile)` clears all shortcuts, reads keymap, registers one per side button that has `action='macro'` + safe key. Returns `{ registered, skippedUnsafe, noKeymap }`.
+- `registerProfileShortcuts(profile)` clears all shortcuts and registers F13+i for each side button that has `action='macro'`. Returns `{ registered, failed }`.
 - `globalShortcut` swallows the original keystroke when fired, so users don't get both the macro AND a Home/F7/etc. keypress.
 
 **macOS Accessibility permission required for keystroke injection.** First macro execution will trigger the system prompt; user must grant access to the Electron binary in System Settings → Privacy & Security → Accessibility. Once granted, the prompt doesn't reappear.
@@ -255,7 +254,46 @@ A `CGEventTap` at `kCGSessionEventTap` with `(eventTypes: keyDown | keyUp)`, cal
 
 Refs: [openrazer/driver/](https://github.com/openrazer/openrazer/tree/master/driver) · [PR #888 effect_storage](https://github.com/openrazer/openrazer/pull/888) (the daemon-side state-persistence pattern they chose over hardware writes).
 
+## Reading the side-button keymap (verified 2026-10-30)
+
+Get binding = set command with the high bit: `cls 0x02 cmd 0x8c size 0x0a`, args `[slot, 0x40 + (n - 1)]`,
+SET_REPORT then GET_REPORT, both on **wIndex 0x00**. The reply echoes the binding at bytes 8..14
+(`slot, source, 00, 02, 02, 00, hid`). Read-only, safe to run any time.
+
+- Slots 0, 1 and 2 hold what the app writes (0 is the live one). Slots 3-5 still hold the factory
+  keys `1`..`=`, stored as `02 01 00 <hid>` instead of the `02 02 00 <hid>` the app writes; both forms work.
+- A correct readback does NOT prove the button works (see the side-plate entry below).
+
+Read-only diagnostic tools in `scripts/diag/` (none of them writes to the mouse):
+- `node scripts/diag/read-keymap.cjs [0,1,2]`: keymap readback per slot.
+- `swiftc -O -o /tmp/naga-raw scripts/diag/naga-raw.swift && /tmp/naga-raw`: raw reports from the
+  Naga keyboard interfaces, i.e. what the mouse really sends. Needs Karabiner to ignore the Naga
+  (see below), otherwise every interface returns `0xe00002c5`.
+- `swiftc -O -o /tmp/fkey-listen scripts/diag/fkey-listen.swift && /tmp/fkey-listen`: what macOS
+  receives (session event tap, F1-F20 + system keys only, no other keystrokes logged). Works with
+  Karabiner active.
+
+Triage order when side buttons misbehave: 1) reseat the side plate, 2) `read-keymap`, 3) `fkey-listen`,
+4) only then the driver. macOS keeps **F14/F15 for display brightness** by default (System Settings >
+Keyboard > Keyboard Shortcuts > Display), so those two never reach apps or Karabiner-EventViewer's
+capture until the shortcuts are unchecked. Restart Karabiner-EventViewer after any `karabiner.json`
+change: it silently stops showing events otherwise.
+
+The keyboard interface also sends Razer notifications as **report ID 5**:
+`05 02 <dpi x hi lo> <dpi y hi lo>` on a DPI change, `05 0e <plate>` when the side plate is
+detached (`00`) or attached (`03` = 12-button plate).
+
 ## Things that wasted time and shouldn't again
+
+- **Side buttons that send nothing AND do not trigger the reactive glow = bad side-plate contact,
+  not software.** 2026-10-30: buttons 2, 3, 7 were dead while the keymap readback was correct and
+  USB replug changed nothing. Detaching and re-attaching the magnetic plate fixed them instantly.
+  Ask for a plate reseat before touching the driver.
+- Karabiner seizes the Naga keyboard interfaces (`IOHIDDeviceOpen` returns `0xe00002c5`, exclusive
+  access), so a raw HID listener needs the Naga set to `"ignore": true` in `karabiner.json` for the
+  duration of the test. Karabiner-EventViewer's "Raw" capture ungrabs it the same way, and its normal
+  capture only runs after "Start capture" (Esc stops it). F21-F24 have no macOS virtual keycode, so a
+  CGEventTap never shows them even when they work.
 
 - Don't use `node-hid` for this device on macOS. Iface 0 (mouse) opens but reports go to the wrong place; iface 1/2 are protected ("DevSrvsID:..." errors). Use `usb` (libusb) with control transfers on endpoint 0.
 - Don't trust `status=0x02 OK` from GET_REPORT as proof the effect applied. FW returns OK for syntactically valid commands even when it ignores them (e.g., generic static on this device returns OK but doesn't visibly change LEDs; only the Trinity-specific 2-step works).
