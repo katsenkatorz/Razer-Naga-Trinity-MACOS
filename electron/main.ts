@@ -301,7 +301,13 @@ app.whenReady().then(async () => {
   }
 
   // RGB nach Start automatisch wiederherstellen (daemon-Pattern).
-  void applyActiveProfile()
+  // NAGA_SKIP_AUTO_APPLY=1 opens the app without writing anything to the mouse,
+  // so the stored profile can be inspected without overwriting the EEPROM keymap.
+  if (process.env.NAGA_SKIP_AUTO_APPLY === '1') {
+    console.log('[naga] auto-apply skipped (NAGA_SKIP_AUTO_APPLY=1)')
+  } else {
+    void applyActiveProfile()
+  }
 })
 
 app.on('window-all-closed', () => {
