@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Check, Layers, TriangleAlert } from 'lucide-react'
+import { Check, TriangleAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useActiveProfile, useNagaStore } from '../store/useNagaStore'
 import { BUTTON_ACTION_IDS, MOUSE_BUTTONS } from '../lib/constants'
@@ -70,15 +70,10 @@ export function ButtonsPanel() {
 
   return (
     <div className="section buttons-section">
-      <div className="card plate-picker-card">
-        <header className="card-head">
-          <div>
-            <p className="eyebrow">
-              <Layers size={12} /> {t('buttons.plateEyebrow')}
-            </p>
-            <h3>{t('buttons.plateTitle')}</h3>
-          </div>
-          <span className="badge muted">{t('buttons.plateFitted')}</span>
+      <section className="group">
+        <header className="group-head">
+          <h3 className="group-title">{t('buttons.plateTitle')}</h3>
+          <span className="group-aside">{t('buttons.plateFitted')}</span>
         </header>
 
         <div className="plate-picker">
@@ -92,40 +87,41 @@ export function ButtonsPanel() {
                 onClick={() => setSidePlate(plate)}
                 aria-pressed={active}
               >
-                <span className="plate-option-check">{active && <Check size={13} />}</span>
                 <SidePlateDiagram
                   plate={plate}
                   ariaLabel={t(`sidePlates.${plate}.label`)}
                 />
-                <strong>{t(`sidePlates.${plate}.label`)}</strong>
-                <span>{t(`sidePlates.${plate}.subtitle`)}</span>
-                <small>
-                  {SIDE_PLATE_BUTTON_COUNT[plate]} {t('performance.plateButtons')}
-                </small>
+                <span className="plate-option-text">
+                  <span className="plate-option-title">
+                    {t(`sidePlates.${plate}.label`)}
+                    {active && <Check size={13} className="plate-option-check" aria-hidden />}
+                  </span>
+                  <span className="plate-option-sub">{t(`sidePlates.${plate}.subtitle`)}</span>
+                  <span className="plate-option-count">
+                    {SIDE_PLATE_BUTTON_COUNT[plate]} {t('performance.plateButtons')}
+                  </span>
+                </span>
               </button>
             )
           })}
         </div>
-        <p className="muted small">{t('buttons.plateNote')}</p>
-      </div>
+        <p className="group-caption">{t('buttons.plateNote')}</p>
+      </section>
 
-      <div className="card buttons-card side-buttons-card">
-        <header className="card-head">
-          <div>
-            <p className="eyebrow">
-              {t('buttons.sidePlateEyebrow')} {t(`sidePlates.${profile.sidePlate}.label`)}
-            </p>
-            <h3>{t('buttons.sideTitle', { count: sideButtons.length })}</h3>
-          </div>
+      <section className="group">
+        <header className="group-head">
+          <h3 className="group-title">
+            {t('buttons.sideTitle', { count: sideButtons.length })}
+          </h3>
           {unresolvedCount > 0 && (
-            <span className="badge warn">
-              <TriangleAlert size={12} />
+            <span className="group-aside warn">
+              <TriangleAlert size={13} />
               {t('buttons.unresolvedBadge', { count: unresolvedCount })}
             </span>
           )}
         </header>
 
-        <div className="side-layout">
+        <div className="group-box side-layout">
           <div className="side-diagram">
             <SidePlateDiagram
               plate={profile.sidePlate}
@@ -135,10 +131,16 @@ export function ButtonsPanel() {
               onSelect={selectSlot}
               ariaLabel={t('buttons.diagramAria')}
             />
+            <ul className="tone-legend" aria-label={t('buttons.legendAria')}>
+              <li className="tone-key">{t('actions.key')}</li>
+              <li className="tone-macro">{t('actions.macro')}</li>
+              <li className="tone-off">{t('buttons.legendOther')}</li>
+              <li className="tone-invalid">{t('buttons.legendInvalid')}</li>
+            </ul>
             <p className="diagram-hint">{t('buttons.diagramHint')}</p>
           </div>
 
-          <div className="button-grid side">
+          <div className="binding-list">
             {sideButtons.map((button, index) => (
               <BindingRow
                 key={button.id}
@@ -151,19 +153,16 @@ export function ButtonsPanel() {
             ))}
           </div>
         </div>
-      </div>
+      </section>
 
-      <div className="card buttons-card">
-        <header className="card-head">
-          <div>
-            <p className="eyebrow">{t('buttons.baseEyebrow')}</p>
-            <h3>{t('buttons.baseTitle')}</h3>
-          </div>
-          <span className="badge muted">
-            {baseButtons.length} {t('buttons.bindings')}
+      <section className="group">
+        <header className="group-head">
+          <h3 className="group-title">{t('buttons.baseTitle')}</h3>
+          <span className="group-aside">
+            {t('buttons.bindingCount', { count: baseButtons.length })}
           </span>
         </header>
-        <div className="button-grid">
+        <div className="group-box binding-list">
           {baseButtons.map((button) => (
             <BindingRow
               key={button.id}
@@ -173,8 +172,8 @@ export function ButtonsPanel() {
             />
           ))}
         </div>
-        <p className="muted small">{t('buttons.baseNote')}</p>
-      </div>
+        <p className="group-caption">{t('buttons.baseNote')}</p>
+      </section>
 
       <datalist id={KEY_DATALIST_ID}>
         {HID_KEY_SUGGESTIONS.map((key) => (
@@ -199,7 +198,7 @@ function BindingRow({ binding, macros, onChange, selected, onFocus }: BindingRow
   const showInput = needsValue(binding.action)
   const unresolved = isUnresolvedKey(binding)
 
-  // Base-Button-Labels über i18n auflösen; gespeicherter Label dient als Fallback (z.B. für custom Side-Button-Namen).
+  // Resolve base button labels through i18n; the stored label is the fallback (e.g. custom side button names).
   const labelKey = `buttons.labels.${binding.id}`
   const displayLabel = i18n.exists(labelKey) ? (t(labelKey) as string) : binding.label
 
@@ -210,12 +209,12 @@ function BindingRow({ binding, macros, onChange, selected, onFocus }: BindingRow
   return (
     <div
       ref={rowRef}
-      className={`binding-row ${selected ? 'selected' : ''} ${unresolved ? 'invalid' : ''}`}
+      className={`row binding-row ${selected ? 'selected' : ''} ${unresolved ? 'invalid' : ''}`}
       onFocusCapture={onFocus}
     >
       <div className="binding-label">
-        <span className="binding-index">#{binding.hardwareIndex}</span>
-        <strong>{displayLabel}</strong>
+        <span className="binding-index numeric">{binding.hardwareIndex}</span>
+        <span className="binding-name">{displayLabel}</span>
       </div>
       <select
         value={binding.action}
@@ -273,7 +272,7 @@ function BindingRow({ binding, macros, onChange, selected, onFocus }: BindingRow
           )}
         </div>
       ) : (
-        <div className="binding-static">{binding.value || '·'}</div>
+        <div className="binding-static">{binding.value}</div>
       )}
     </div>
   )

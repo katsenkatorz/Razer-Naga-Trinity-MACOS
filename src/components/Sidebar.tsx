@@ -1,4 +1,4 @@
-import { Languages, MousePointer2, Plus, Radar, RefreshCw } from 'lucide-react'
+import { Plus, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { SUPPORTED_LANGUAGES, type SupportedLanguage } from '../i18n'
 import { useActiveProfile, useNagaStore } from '../store/useNagaStore'
@@ -22,103 +22,101 @@ export function Sidebar() {
 
   return (
     <aside className="sidebar">
-      <div className="brand">
-        <div className="brand-mark">
-          <MousePointer2 size={20} />
-        </div>
-        <div className="brand-text">
-          <span>Naga Trinity</span>
-          <strong>{t('sidebar.brandSub')}</strong>
-        </div>
-      </div>
-
-      <div className="device-card">
-        <div className={`device-orbit ${device.connected ? 'live' : ''}`}>
-          <Radar size={28} />
-        </div>
-        <div className="device-meta">
-          <span className={`pill ${device.connected ? 'good' : 'warn'}`}>
-            <span className="pill-dot" />
+      <section className="device" aria-label={t('sidebar.device')}>
+        <h2 className="device-name">{device.productName || 'Razer Naga Trinity'}</h2>
+        <div className="device-status-row">
+          <p className={`device-status ${device.connected ? 'connected' : ''}`}>
+            <span className="status-dot" aria-hidden />
             {device.connected ? t('common.connected') : t('common.disconnected')}
-          </span>
-          <h2>{device.productName || 'Razer Naga Trinity'}</h2>
-          <p>
-            VID:PID <strong>1532:0067</strong>
-            <span className="dot-sep">·</span>
-            {device.interfaces || 0} {t('sidebar.hidInterfaces')}
           </p>
+          <button className="btn-plain small" type="button" onClick={() => void rescan()}>
+            <RefreshCw size={12} />
+            {t('sidebar.rescan')}
+          </button>
         </div>
-        <button
-          className="ghost-button compact full-width"
-          type="button"
-          onClick={() => void rescan()}
-        >
-          <RefreshCw size={14} />
-          {t('sidebar.rescan')}
-        </button>
-      </div>
+        <dl className="device-facts">
+          <div>
+            <dt>VID:PID</dt>
+            <dd>1532:0067</dd>
+          </div>
+          <div>
+            <dt>{t('sidebar.hidInterfaces')}</dt>
+            <dd>{device.interfaces || 0}</dd>
+          </div>
+        </dl>
+      </section>
 
-      <div className="profile-section">
-        <header>
-          <span>{t('sidebar.profiles')}</span>
+      <section className="profile-section">
+        <header className="sidebar-heading">
+          <h2>{t('sidebar.profiles')}</h2>
           <button
             type="button"
-            className="icon-button small"
+            className="icon-btn"
             onClick={() => void createProfile()}
             aria-label={t('sidebar.addProfile')}
+            title={t('sidebar.addProfile')}
           >
             <Plus size={14} />
           </button>
         </header>
 
         <nav className="profile-list" aria-label={t('sidebar.profiles')}>
-          {store.profiles.map((item) => (
-            <button
-              className={`profile ${item.id === active.id ? 'active' : ''}`}
-              key={item.id}
-              type="button"
-              onClick={() => void selectProfile(item.id)}
-            >
-              <div className="profile-info">
-                <span>{item.name}</span>
-                <small>
-                  {item.dpi.stages[item.dpi.activeStage - 1]?.x ?? 1800} {t('sidebar.dpiSuffix')}
-                  <span className="dot-sep">·</span>
-                  {item.pollingRate}Hz
-                </small>
-              </div>
-              <div
-                className="profile-swatch"
-                style={{ background: item.rgb.color }}
-                aria-hidden
-              />
-            </button>
-          ))}
+          {store.profiles.map((item) => {
+            const isActive = item.id === active.id
+            return (
+              <button
+                className={`profile ${isActive ? 'active' : ''}`}
+                key={item.id}
+                type="button"
+                aria-current={isActive ? 'true' : undefined}
+                onClick={() => void selectProfile(item.id)}
+              >
+                <span className="profile-info">
+                  <span className="profile-name-label">{item.name}</span>
+                  <small>
+                    {t('sidebar.profileSummary', {
+                      dpi: item.dpi.stages[item.dpi.activeStage - 1]?.x ?? 1800,
+                      hz: item.pollingRate,
+                    })}
+                  </small>
+                </span>
+                <span
+                  className="profile-swatch"
+                  style={{ background: item.rgb.color }}
+                  aria-hidden
+                />
+              </button>
+            )
+          })}
         </nav>
-      </div>
+      </section>
 
       <footer className="sidebar-footer">
-        <div className="footer-stage">
-          <span>{t('sidebar.activeStage')}</span>
-          <strong>{activeStage?.x ?? 1800} {t('sidebar.dpiSuffix')}</strong>
+        <div className="footer-row">
+          <span className="footer-label">{t('sidebar.activeStage')}</span>
+          <span className="footer-value">
+            {activeStage?.x ?? 1800}
+            <span className="unit">{t('sidebar.dpiSuffix')}</span>
+          </span>
         </div>
-        <div className="lang-switch" role="group" aria-label={t('topbar.language')}>
-          <Languages size={13} />
-          {SUPPORTED_LANGUAGES.map((code) => (
-            <button
-              key={code}
-              type="button"
-              className={`lang-button ${currentLang === code ? 'active' : ''}`}
-              onClick={() => switchLanguage(code)}
-              aria-pressed={currentLang === code}
-            >
-              {code.toUpperCase()}
-            </button>
-          ))}
+        <div className="footer-row">
+          <span className="footer-label">{t('topbar.language')}</span>
+          <div className="segmented small" role="group" aria-label={t('topbar.language')}>
+            {SUPPORTED_LANGUAGES.map((code) => (
+              <button
+                key={code}
+                type="button"
+                className={currentLang === code ? 'active' : ''}
+                onClick={() => switchLanguage(code)}
+                aria-pressed={currentLang === code}
+              >
+                {code.toUpperCase()}
+              </button>
+            ))}
+          </div>
         </div>
         <p className="trademark-note">
-          <span>{t('trademark.short')}</span>
-          <span>{t('trademark.disclaimer')}</span>
+          {t('trademark.short')} {t('trademark.disclaimer')}
         </p>
       </footer>
     </aside>

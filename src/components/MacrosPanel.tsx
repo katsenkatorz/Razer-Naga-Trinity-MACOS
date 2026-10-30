@@ -24,38 +24,38 @@ export function MacrosPanel() {
 
   return (
     <div className="section macros-section">
-      <div className="card macros-card">
-        <header className="card-head">
-          <div>
-            <p className="eyebrow">{t('macros.automationEyebrow')}</p>
-            <h3>
-              {t('macros.title')} ({profile.macros.length})
-            </h3>
-          </div>
-          <button type="button" className="soft-button" onClick={addMacro}>
+      <section className="group">
+        <header className="group-head">
+          <h3 className="group-title">
+            {t('macros.title')}
+            <span className="group-count numeric">{profile.macros.length}</span>
+          </h3>
+          <button type="button" className="btn-secondary" onClick={addMacro}>
             <Plus size={14} />
             {t('macros.newMacro')}
           </button>
         </header>
 
         {profile.macros.length === 0 ? (
-          <div className="empty">
+          <div className="group-box empty">
             <strong>{t('macros.emptyTitle')}</strong>
             <p>{t('macros.emptyBody')}</p>
           </div>
         ) : (
-          <div className="macro-list">
+          <div className="group-box macro-list">
             {profile.macros.map((macro) => (
-              <article className="macro-card" key={macro.id}>
+              <article className="macro" key={macro.id}>
                 <header className="macro-head">
                   <input
                     className="macro-name"
                     value={macro.name}
+                    aria-label={t('macros.nameAria')}
                     onChange={(event) => updateMacro({ ...macro, name: event.target.value })}
                   />
                   <div className="macro-controls">
                     <select
                       value={macro.repeatMode}
+                      aria-label={t('macros.repeatAria')}
                       onChange={(event) =>
                         updateMacro({
                           ...macro,
@@ -75,6 +75,7 @@ export function MacrosPanel() {
                         type="number"
                         min={1}
                         max={999}
+                        aria-label={t('macros.repeatCountAria')}
                         value={macro.repeatCount}
                         onChange={(event) =>
                           updateMacro({
@@ -86,28 +87,31 @@ export function MacrosPanel() {
                     )}
                     <button
                       type="button"
-                      className="icon-button small ghost"
+                      className="icon-btn"
                       onClick={() => removeMacro(macro.id)}
                       aria-label={t('macros.deleteMacro')}
+                      title={t('macros.deleteMacro')}
                     >
                       <Trash2 size={14} />
                     </button>
                   </div>
                 </header>
 
-                <div className="macro-preview">
-                  {macro.steps.map((step, index) => (
-                    <span key={step.id} className={`chip ${step.type}`}>
-                      <span className="chip-index">{index + 1}</span>
-                      {stepPreview(step)}
-                    </span>
-                  ))}
-                </div>
+                {macro.steps.length > 0 && (
+                  <ol className="macro-preview" aria-label={t('macros.sequenceAria')}>
+                    {macro.steps.map((step) => (
+                      <li key={step.id} className="token">
+                        {stepPreview(step)}
+                      </li>
+                    ))}
+                  </ol>
+                )}
 
                 <div className="step-list">
-                  {macro.steps.map((step) => (
+                  {macro.steps.map((step, index) => (
                     <StepRow
                       key={step.id}
+                      index={index + 1}
                       step={step}
                       onChange={(next) => updateMacroStep(macro.id, next)}
                       onRemove={() => removeMacroStep(macro.id, step.id)}
@@ -117,7 +121,7 @@ export function MacrosPanel() {
 
                 <button
                   type="button"
-                  className="ghost-button compact"
+                  className="btn-plain add-step"
                   onClick={() => addMacroStep(macro.id)}
                 >
                   <Plus size={13} />
@@ -127,18 +131,19 @@ export function MacrosPanel() {
             ))}
           </div>
         )}
-      </div>
+      </section>
     </div>
   )
 }
 
 interface StepRowProps {
+  index: number
   step: MacroStep
   onChange(step: MacroStep): void
   onRemove(): void
 }
 
-function StepRow({ step, onChange, onRemove }: StepRowProps) {
+function StepRow({ index, step, onChange, onRemove }: StepRowProps) {
   const { t } = useTranslation()
 
   const placeholder =
@@ -150,8 +155,10 @@ function StepRow({ step, onChange, onRemove }: StepRowProps) {
 
   return (
     <div className="step-row">
+      <span className="step-index numeric">{index}</span>
       <select
         value={step.type}
+        aria-label={t('macros.stepTypeAria', { n: index })}
         onChange={(event) =>
           onChange({ ...step, type: event.target.value as MacroStepType })
         }
@@ -163,15 +170,18 @@ function StepRow({ step, onChange, onRemove }: StepRowProps) {
         ))}
       </select>
       {step.type === 'delay' ? (
-        <input
-          type="number"
-          min={0}
-          max={5000}
-          value={step.delayMs}
-          onChange={(event) =>
-            onChange({ ...step, delayMs: Math.max(0, Number(event.target.value)) })
-          }
-        />
+        <label className="input-with-unit">
+          <input
+            type="number"
+            min={0}
+            max={5000}
+            value={step.delayMs}
+            onChange={(event) =>
+              onChange({ ...step, delayMs: Math.max(0, Number(event.target.value)) })
+            }
+          />
+          <span className="unit">ms</span>
+        </label>
       ) : (
         <input
           value={step.value}
@@ -181,9 +191,10 @@ function StepRow({ step, onChange, onRemove }: StepRowProps) {
       )}
       <button
         type="button"
-        className="icon-button small ghost"
+        className="icon-btn"
         onClick={onRemove}
         aria-label={t('macros.removeStep')}
+        title={t('macros.removeStep')}
       >
         <Trash2 size={13} />
       </button>

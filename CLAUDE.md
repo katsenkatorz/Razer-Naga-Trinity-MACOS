@@ -45,6 +45,7 @@ Spectrum/wave/reactive use the generic ext_matrix per-zone (`cls 0x0f cmd 0x02`)
 - `electron/profileStore.ts` : JSON persistence at `app.getPath('userData')/profiles.json` (STORE_VERSION 3). `migrateBaseButtons` handles the pre-Wheel-Tilt layout (detects legacy `base-6` with `action=dpi-up`); `migrateSideButtons` rewrites the never-writable v2 defaults ("10"/"11"/"12") to the factory keys.
 - `src/components/SidePlateDiagram.tsx` : SVG of a side plate (2 stacked / 7 in a ring / 12 numpad grid), used both as the picker thumbnail and as the interactive full-size map.
 - `src/store/useNagaStore.ts` : Zustand store. Layout constants come from `electron/buttonLayout.ts`, no local copy.
+- `src/index.css` (tokens) + `src/App.css` : the UI is deliberately sober (redesign 2026-10-30): neutral graphite surfaces, hairline-separated groups like macOS System Settings, system font with tabular numbers, a muted sage `--accent` used only for state (selection, active profile, focus). No glows, gradients, blur, uppercase eyebrows or monospace labels; the user's RGB colour is the only bright colour and only where it is data. `src/components/Switch.tsx` is the on/off switch, `src/lib/rangeFill.ts` sizes slider fills.
 
 ## Base button layout (9 buttons, post Wheel-Tilt migration)
 

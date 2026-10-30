@@ -86,7 +86,7 @@ const createWindow = async () => {
     minWidth: 1080,
     minHeight: 720,
     title: 'Naga Trinity Control',
-    backgroundColor: '#0a0c0a',
+    backgroundColor: '#1e1f22',
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 18, y: 18 },
     show: false,
