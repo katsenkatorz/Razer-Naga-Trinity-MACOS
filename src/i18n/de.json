@@ -42,7 +42,7 @@
   "driverNotices": {
     "applyComplete": "RGB, DPI, Polling-Rate und Button-Bindings auf Maus geschrieben.",
     "applyCompleteWithMacros": "RGB, DPI, Polling-Rate und Button-Bindings auf Maus geschrieben. {{macroCount}} Side-Buttons auf F13–F24 für Makros gemappt.",
-    "applyCompleteWithUnmapped": "RGB, DPI und Polling-Rate geschrieben. {{count}} Seitentaste(n) konnten nicht an die Maus gesendet werden: {{unmapped}}.",
+    "applyCompleteWithUnmapped": "RGB, DPI und Polling-Rate geschrieben. {{count}} Taste(n) behalten ihre Standardbelegung, weil die Belegung nicht an die Maus gesendet werden konnte: {{unmapped}}.",
     "rgbOff": "RGB ausgeschaltet.",
     "rgbUpdated": "RGB aktualisiert.",
     "usbError": "USB-Fehler: {{detail}}",
@@ -113,8 +113,14 @@
     "twelve": { "label": "12-Tasten", "subtitle": "MMO / Produktivität" }
   },
   "buttons": {
+    "tiltTitle": "Rad-Neigung",
+    "tiltNote": "Das Mausrad nach links oder rechts drücken. Jede Richtung kann eine Taste senden (keine Kombination mit Cmd, Ctrl oder Shift) oder ihre Standardbelegung behalten: zurück und vor wie Maustaste 4 und 5.",
+    "tiltDefault": {
+      "base-6": "Zurück (Maustaste 4)",
+      "base-7": "Vor (Maustaste 5)"
+    },
     "baseTitle": "Maustasten",
-    "baseNote": "Basistasten sind rein informativ: die Trinity-Firmware akzeptiert nur Belegungen für Seitenplatte und Rad-Tilt.",
+    "baseNote": "Von der Firmware festgelegt: diese Tasten lassen sich nicht umbelegen.",
     "bindingCount": "{{count}} Belegung",
     "bindingCount_other": "{{count}} Belegungen",
     "plateTitle": "Welche Seitenplatte ist montiert?",

@@ -1373,6 +1373,11 @@ input[type='range']:focus-visible::-webkit-slider-thumb {
   color: var(--text-2);
 }
 
+/* Buttons the firmware cannot rebind: the value spans the picker and value columns. */
+.binding-row.readonly .binding-static {
+  grid-column: span 2;
+}
+
 /* ---------- Macros ---------- */
 .macro {
   display: grid;

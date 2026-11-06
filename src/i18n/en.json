@@ -42,7 +42,7 @@
   "driverNotices": {
     "applyComplete": "RGB, DPI, polling rate and button bindings written to the mouse.",
     "applyCompleteWithMacros": "RGB, DPI, polling rate and button bindings written to the mouse. {{macroCount}} side buttons mapped to F13–F24 for macros.",
-    "applyCompleteWithUnmapped": "RGB, DPI and polling rate written. {{count}} side key(s) could not be sent to the mouse: {{unmapped}}.",
+    "applyCompleteWithUnmapped": "RGB, DPI and polling rate written. {{count}} button(s) kept their default because the binding could not be sent to the mouse: {{unmapped}}.",
     "rgbOff": "RGB turned off.",
     "rgbUpdated": "RGB updated.",
     "usbError": "USB error: {{detail}}",
@@ -113,8 +113,14 @@
     "twelve": { "label": "12-key", "subtitle": "MMO / Productivity" }
   },
   "buttons": {
+    "tiltTitle": "Wheel tilt",
+    "tiltNote": "Push the scroll wheel left or right. Each direction can send one key (no Cmd, Ctrl or Shift combinations) or keep its default, back and forward like mouse buttons 4 and 5.",
+    "tiltDefault": {
+      "base-6": "Back (mouse button 4)",
+      "base-7": "Forward (mouse button 5)"
+    },
     "baseTitle": "Mouse buttons",
-    "baseNote": "Base buttons are informational: the Trinity firmware only accepts side-plate and wheel-tilt bindings.",
+    "baseNote": "Set by the firmware: these buttons cannot be reassigned.",
     "bindingCount": "{{count}} binding",
     "bindingCount_other": "{{count}} bindings",
     "plateTitle": "Which side plate is fitted?",

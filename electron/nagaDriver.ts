@@ -1,5 +1,5 @@
 import { findByIds, type Device } from 'usb'
-import { SIDE_PLATE_BUTTON_COUNT } from './buttonLayout'
+import { SIDE_PLATE_BUTTON_COUNT, WHEEL_TILT } from './buttonLayout'
 import { HID_NONE, resolveHidCode } from './hidKeys'
 import type {
   ApplyResult,
@@ -345,21 +345,33 @@ export const SIDE_BUTTON_MACRO_HID: readonly number[] = [
   0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x6e, 0x6f, 0x70, 0x71, 0x72, 0x73,
 ]
 
-// Schreibt ein einzelnes Side-Button-Binding ins EEPROM. Aus Wireshark-Capture: cls 0x02 cmd 0x0c size 0x0a, wIndex=0, args = [slot, 0x40+(idx-1), 0, 0x02, 0x02, 0, hidCode, 0, 0, 0].
-const writeSideButtonBinding = async (
+// Razer action payload, written from byte 11 of a set-binding report: [type, length, ...data].
+// Keyboard = 02 02 <modifier> <hid> (modifier always 0 here), mouse button = 01 01 <button>.
+// Factory slot 3 shows a third type for the wheel tilt (0e: horizontal scroll), not used.
+type BindingAction = readonly number[]
+const keyAction = (hid: number): BindingAction => [0x02, 0x02, 0x00, hid]
+const mouseButtonAction = (button: number): BindingAction => [0x01, 0x01, button]
+
+interface SourceBinding {
+  /** Razer source ID: 0x40..0x4b side buttons 1-12, 0x34 / 0x35 wheel tilt left / right. */
+  source: number
+  action: BindingAction
+}
+
+// Schreibt ein einzelnes Binding ins EEPROM. Aus Wireshark-Capture: cls 0x02 cmd 0x0c size 0x0a,
+// wIndex=0, args = [slot, source, 0, ...action].
+const writeBinding = async (
   device: Device,
   slot: number,
-  buttonIndex: number,
-  hidCode: number,
+  { source, action }: SourceBinding,
 ) => {
   const report = createReport(0x02, 0x0c, 0x0a, TX_TRINITY_EFFECT)
   report[8] = slot
-  report[9] = RAZER_SIDE_BUTTON_SOURCE_OFFSET + (buttonIndex - 1)
+  report[9] = source
   report[10] = 0x00
-  report[11] = 0x02
-  report[12] = 0x02
-  report[13] = 0x00
-  report[14] = hidCode
+  action.forEach((byte, index) => {
+    report[11 + index] = byte
+  })
   setCrc(report)
   await new Promise<void>((resolve, reject) => {
     device.controlTransfer(
@@ -377,53 +389,55 @@ const writeSideButtonBinding = async (
 // erst Slot 2 (pending), dann sofort Slot 1 (commit) für dieselbe Taste. Vorher lief die
 // Schleife pro Slot über alle Tasten (12x Slot 2, dann 12x Slot 1) - dabei committet die FW
 // jede Taste gegen den zuletzt gesehenen Pending-Wert, die Belegungen landen verschoben.
-const applySideBindings = async (device: Device, hidCodes: readonly number[]) => {
-  for (let i = 0; i < Math.min(12, hidCodes.length); i++) {
-    await writeSideButtonBinding(device, 0x02, i + 1, hidCodes[i])
+const applyBindings = async (device: Device, bindings: readonly SourceBinding[]) => {
+  for (const binding of bindings) {
+    await writeBinding(device, 0x02, binding)
     await wait(20)
-    await writeSideButtonBinding(device, 0x01, i + 1, hidCodes[i])
+    await writeBinding(device, 0x01, binding)
     await wait(20)
   }
 }
 
-// Wheel-Tilt-Tasten (4D-Maus): Sources 0x34 (links) und 0x35 (rechts). Action-Type 0x01/0x01 (Razer-interne System-Aktion, nicht roher HID-Code). Aus Synapse-Capture: action 0x04 = Browser-Back, action 0x05 = Browser-Forward.
-const writeWheelTiltBinding = async (
-  device: Device,
-  slot: number,
-  source: number,
-  action: number,
-) => {
-  const report = createReport(0x02, 0x0c, 0x0a, TX_TRINITY_EFFECT)
-  report[8] = slot
-  report[9] = source
-  report[10] = 0x00
-  report[11] = 0x01
-  report[12] = 0x01
-  report[13] = action
-  setCrc(report)
-  await new Promise<void>((resolve, reject) => {
-    device.controlTransfer(
-      SET_REPORT_REQUEST_TYPE,
-      SET_REPORT_REQUEST,
-      SET_REPORT_VALUE,
-      0x00,
-      report,
-      (err) => (err ? reject(err) : resolve()),
-    )
-  })
+const sideBindingsToWrite = (hidCodes: readonly number[]): SourceBinding[] =>
+  hidCodes.slice(0, 12).map((hid, index) => ({
+    source: RAZER_SIDE_BUTTON_SOURCE_OFFSET + index,
+    action: keyAction(hid),
+  }))
+
+interface WheelTiltPlan {
+  bindings: SourceBinding[]
+  /** Human-readable list of tilt directions whose configuration could not be written. */
+  unmapped: string[]
 }
 
-// Gleiches Paar-Muster wie applySideBindings: Slot 2 + Slot 1 pro Quelle, nicht pro Slot.
-const applyWheelTiltDefaults = async (device: Device) => {
-  for (const [source, action] of [
-    [0x34, 0x04],
-    [0x35, 0x05],
-  ] as const) {
-    await writeWheelTiltBinding(device, 0x02, source, action)
-    await wait(20)
-    await writeWheelTiltBinding(device, 0x01, source, action)
-    await wait(20)
+// Wheel tilt (4D wheel): `default` keeps the app's long-standing mouse button 4 / 5
+// (back / forward in browsers and Finder), `key` writes a single keystroke like a side button.
+export const buildWheelTiltBindings = (profile: NagaProfile): WheelTiltPlan => {
+  const bindings: SourceBinding[] = []
+  const unmapped: string[] = []
+
+  for (const tilt of WHEEL_TILT) {
+    const binding = profile.buttons.find((b) => b.id === tilt.id)
+    const label = binding?.label ?? tilt.id
+
+    if (binding?.action === 'key') {
+      const hid = resolveHidCode(binding.value)
+      if (hid !== undefined) {
+        bindings.push({ source: tilt.source, action: keyAction(hid) })
+        continue
+      }
+      unmapped.push(`${label} (“${binding.value}”)`)
+    } else if (binding?.action === 'disabled') {
+      bindings.push({ source: tilt.source, action: keyAction(HID_NONE) })
+      continue
+    } else if (binding && binding.action !== 'default') {
+      unmapped.push(`${label} (${binding.action})`)
+    }
+
+    bindings.push({ source: tilt.source, action: mouseButtonAction(tilt.defaultMouseButton) })
   }
+
+  return { bindings, unmapped }
 }
 
 // Actions the FW can't express through a keystroke binding (cls 0x02 / action type 02 02).
@@ -515,9 +529,10 @@ export const applyHardwareProfile = async (
     await applyRgb(device, profile.rgb)
     await setDpiStages(device, profile.dpi)
     await setPollingRate(device, profile.pollingRate)
-    const { codes, unmapped } = buildSideBindings(profile)
-    await applySideBindings(device, codes)
-    await applyWheelTiltDefaults(device)
+    const side = buildSideBindings(profile)
+    const tilt = buildWheelTiltBindings(profile)
+    await applyBindings(device, [...sideBindingsToWrite(side.codes), ...tilt.bindings])
+    const unmapped = [...side.unmapped, ...tilt.unmapped]
     const macroCount = profile.buttons.filter(
       (b) => b.id.startsWith('side-') && b.action === 'macro' && b.macroId,
     ).length

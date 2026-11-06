@@ -4,7 +4,13 @@ import { useTranslation } from 'react-i18next'
 import { useActiveProfile, useNagaStore } from '../store/useNagaStore'
 import { BUTTON_ACTION_IDS, MOUSE_BUTTONS } from '../lib/constants'
 import { SidePlateDiagram, type SlotState } from './SidePlateDiagram'
-import { SIDE_PLATE_BUTTON_COUNT, SIDE_PLATE_IDS } from '../../electron/buttonLayout'
+import {
+  SIDE_PLATE_BUTTON_COUNT,
+  SIDE_PLATE_IDS,
+  WHEEL_TILT_ACTIONS,
+  baseDefaultValue,
+  isWheelTilt,
+} from '../../electron/buttonLayout'
 import { HID_KEY_SUGGESTIONS, resolveHidCode } from '../../electron/hidKeys'
 import type { ButtonActionKind, ButtonBinding, Macro } from '../../electron/types'
 
@@ -37,6 +43,8 @@ export function ButtonsPanel() {
     }))
 
   const baseButtons = profile.buttons.filter((button) => button.id.startsWith('base-'))
+  const tiltButtons = baseButtons.filter(isWheelTilt)
+  const fixedButtons = baseButtons.filter((button) => !isWheelTilt(button))
   const sideButtons = profile.buttons.filter((button) => button.id.startsWith('side-'))
 
   const slotStates = useMemo(() => {
@@ -157,18 +165,38 @@ export function ButtonsPanel() {
 
       <section className="group">
         <header className="group-head">
-          <h3 className="group-title">{t('buttons.baseTitle')}</h3>
-          <span className="group-aside">
-            {t('buttons.bindingCount', { count: baseButtons.length })}
-          </span>
+          <h3 className="group-title">{t('buttons.tiltTitle')}</h3>
         </header>
         <div className="group-box binding-list">
-          {baseButtons.map((button) => (
+          {tiltButtons.map((button) => (
             <BindingRow
               key={button.id}
               binding={button}
               macros={profile.macros}
               onChange={updateButton}
+              actions={WHEEL_TILT_ACTIONS}
+              defaultText={t(`buttons.tiltDefault.${button.id}`)}
+            />
+          ))}
+        </div>
+        <p className="group-caption">{t('buttons.tiltNote')}</p>
+      </section>
+
+      <section className="group">
+        <header className="group-head">
+          <h3 className="group-title">{t('buttons.baseTitle')}</h3>
+          <span className="group-aside">
+            {t('buttons.bindingCount', { count: fixedButtons.length })}
+          </span>
+        </header>
+        <div className="group-box binding-list">
+          {fixedButtons.map((button) => (
+            <BindingRow
+              key={button.id}
+              binding={button}
+              macros={profile.macros}
+              onChange={updateButton}
+              readOnly
             />
           ))}
         </div>
@@ -190,9 +218,24 @@ interface BindingRowProps {
   onChange(next: ButtonBinding): void
   selected?: boolean
   onFocus?(): void
+  /** Actions offered in the picker; defaults to every action. */
+  actions?: readonly ButtonActionKind[]
+  /** Text shown for the `default` action instead of the stored value. */
+  defaultText?: string
+  /** The firmware cannot rebind this button: show what it does, no picker. */
+  readOnly?: boolean
 }
 
-function BindingRow({ binding, macros, onChange, selected, onFocus }: BindingRowProps) {
+function BindingRow({
+  binding,
+  macros,
+  onChange,
+  selected,
+  onFocus,
+  actions = BUTTON_ACTION_IDS,
+  defaultText,
+  readOnly = false,
+}: BindingRowProps) {
   const { t, i18n } = useTranslation()
   const rowRef = useRef<HTMLDivElement>(null)
   const showInput = needsValue(binding.action)
@@ -206,27 +249,50 @@ function BindingRow({ binding, macros, onChange, selected, onFocus }: BindingRow
     if (selected) rowRef.current?.scrollIntoView({ block: 'nearest' })
   }, [selected])
 
+  const label = (
+    <div className="binding-label">
+      <span className="binding-index numeric">{binding.hardwareIndex}</span>
+      <span className="binding-name">{displayLabel}</span>
+    </div>
+  )
+
+  if (readOnly) {
+    return (
+      <div className="row binding-row readonly">
+        {label}
+        <div className="binding-static">{binding.value}</div>
+      </div>
+    )
+  }
+
+  const changeAction = (action: ButtonActionKind) => {
+    let value = binding.value
+    if (action === 'mouse-button') value = 'Mouse 4'
+    // Drop leftovers such as a macro id or "Browser ←", but keep a key that still works.
+    else if (action === 'key' && resolveHidCode(value) === undefined) value = ''
+    else if (action === 'default') value = baseDefaultValue(binding.id) ?? value
+    onChange({ ...binding, action, value })
+  }
+
+  const staticText =
+    binding.action === 'default' && defaultText
+      ? defaultText
+      : binding.action === 'disabled'
+        ? ''
+        : binding.value
+
   return (
     <div
       ref={rowRef}
       className={`row binding-row ${selected ? 'selected' : ''} ${unresolved ? 'invalid' : ''}`}
       onFocusCapture={onFocus}
     >
-      <div className="binding-label">
-        <span className="binding-index numeric">{binding.hardwareIndex}</span>
-        <span className="binding-name">{displayLabel}</span>
-      </div>
+      {label}
       <select
         value={binding.action}
-        onChange={(event) =>
-          onChange({
-            ...binding,
-            action: event.target.value as ButtonActionKind,
-            value: event.target.value === 'mouse-button' ? 'Mouse 4' : binding.value,
-          })
-        }
+        onChange={(event) => changeAction(event.target.value as ButtonActionKind)}
       >
-        {BUTTON_ACTION_IDS.map((action) => (
+        {actions.map((action) => (
           <option key={action} value={action}>
             {t(`actions.${action}`)}
           </option>
@@ -272,7 +338,7 @@ function BindingRow({ binding, macros, onChange, selected, onFocus }: BindingRow
           )}
         </div>
       ) : (
-        <div className="binding-static">{binding.value}</div>
+        <div className="binding-static">{staticText}</div>
       )}
     </div>
   )

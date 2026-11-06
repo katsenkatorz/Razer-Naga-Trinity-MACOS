@@ -43,6 +43,25 @@ export const BASE_BUTTONS: ReadonlyArray<{
   { label: 'DPI Down', action: 'dpi-down', value: 'DPI -' },
 ]
 
+/**
+ * The two wheel-tilt directions are the only base buttons the firmware lets us rebind
+ * (Razer sources 0x34 / 0x35). Their `default` is mouse button 4 / 5, i.e. back / forward.
+ */
+export const WHEEL_TILT = [
+  { id: 'base-6', source: 0x34, defaultMouseButton: 0x04 },
+  { id: 'base-7', source: 0x35, defaultMouseButton: 0x05 },
+] as const
+
+/** Actions a wheel-tilt direction can take; anything else falls back to `default`. */
+export const WHEEL_TILT_ACTIONS: readonly ButtonBinding['action'][] = ['default', 'key', 'disabled']
+
+export const isWheelTilt = (button: Pick<ButtonBinding, 'id'>) =>
+  WHEEL_TILT.some((tilt) => tilt.id === button.id)
+
+/** Value a base button shows when set back to `default`. */
+export const baseDefaultValue = (id: string) =>
+  BASE_BUTTONS[Number(id.replace('base-', '')) - 1]?.value
+
 export const isSideButton = (button: ButtonBinding) => button.id.startsWith('side-')
 export const isBaseButton = (button: ButtonBinding) => button.id.startsWith('base-')
 
